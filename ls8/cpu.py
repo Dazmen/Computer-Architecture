@@ -7,7 +7,24 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        # Memory with 256 bytes (RAM)
+        self.ram = [0] * 256
+        
+        # Register, general purpose memory
+        self.reg = [0] * 8
+
+        # pc - program counter to track the index/address of instructions in memory
+        self.pc = 0
+        
+        # Bool value determining if the CPU is 'on'
+        self.running = True
+        
+    ### MAR = address/index, MRD = value
+    def ram_read(self, MAR):
+        return self.ram[MAR]
+
+    def ram_write(self, MRD, MAR):
+        self.ram[MAR] = MRD
 
     def load(self):
         """Load a program into memory."""
@@ -62,4 +79,40 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        instructions = {
+            'LDI': 0b10000010, # Load value into register
+            'PRN': 0b01000111, # Print the value
+            'HLT': 0b00000001 # Halts the program
+        }
+
+        while self.running:
+            # ir = instruction register
+            ir = self.ram_read(self.pc)
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+
+            if ir == instructions['HLT']:
+                self.running = False
+            elif ir == instructions['PRN']:
+                # the next line is the address in the register to print
+                reg_address = operand_a
+                value = self.reg[reg_address]
+                print(value)
+                # increment by 2 since there were two lines of instruction
+                self.pc += 2
+            elif ir == instructions['LDI']:
+                #The current IR is an instruction
+                #operand_a is IR + 1, which is the memory location
+                #operand_b is the IR + 2 which is the value
+                reg_address = operand_a
+                value = operand_b
+                self.reg[reg_address] = value
+
+                # Increment pc by 3 since the instructions read 3 lines of instruction
+                self.pc += 3
+            else:
+                print(f'Unknown Instruction {ir} as address {self.pc}')
+                sys.exit(1)
+
+
+
