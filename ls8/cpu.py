@@ -12,12 +12,27 @@ class CPU:
         
         # Register, general purpose memory
         self.reg = [0] * 8
+        # Initialize the last spot in the register to the pointer of the beginning of the stack
+        self.reg[7] = 0xf4
 
         # pc - program counter to track the index/address of instructions in memory
         self.pc = 0
+
+        # stp - STack Pointer, points to a location in the register that contains the current position in the stack
+        self.stp = self.reg[7]
         
         # Bool value determining if the CPU is 'on'
         self.running = True
+
+        # Instructions Table
+        self.branch_table = {
+            0b10000010: self.LDI,
+            0b01000111: self.PRN,
+            0b10100010: self.MUL,
+            0b00000001: self.HLT,
+            0b01000101: self.PUSH,
+            0b01000110: self.POP
+        }
         
     ### MAR = address/index, MRD = value
     def ram_read(self, MAR):
@@ -28,24 +43,17 @@ class CPU:
 
     def load(self):
         """Load a program into memory."""
-
+        # Dynamic load method
+        file = sys.argv[1]
         address = 0
 
-        # For now, we've just hardcoded a program:
-
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
-
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+        with open(file) as f:
+            for line in f:
+                split_line = line.split(' ')[0].strip("\n")
+                # print(split_line)
+                if len(split_line) == 8:
+                    self.ram[address] = int(split_line, 2)
+                    address += 1
 
 
     def alu(self, op, reg_a, reg_b):
@@ -53,7 +61,12 @@ class CPU:
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+        elif op == "SUB":
+            self.reg[reg_a] -= self.reg[reg_b]
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
+        elif op == "DIV":
+            self.reg[reg_a] /= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -77,39 +90,51 @@ class CPU:
 
         print()
 
+    def HLT(self):
+        self.running = False
+
+    def PRN(self):
+        reg_address = self.ram_read(self.pc + 1)
+        value = self.reg[reg_address]
+        print(f'PRN -> {value}')
+
+    def LDI(self):
+        reg_address = self.ram_read(self.pc+1)
+        value = self.ram_read(self.pc+2)
+        self.reg[reg_address] = value
+
+    def MUL(self):
+        num1 = self.ram_read(self.pc + 1)
+        num2 = self.ram_read(self.pc +2 )
+        self.alu("MUL", num1, num2)
+
+    def PUSH(self):
+        self.stp -= 1
+        reg_address = self.ram[self.pc + 1]
+        value = self.reg[reg_address]
+        self.ram[self.stp] = value
+
+    def POP(self):
+        reg_address = self.ram[self.pc + 1]
+        value = self.ram[self.stp]
+        self.reg[reg_address] = value
+        self.stp += 1
+
+
     def run(self):
         """Run the CPU."""
-        instructions = {
-            'LDI': 0b10000010, # Load value into register
-            'PRN': 0b01000111, # Print the value
-            'HLT': 0b00000001 # Halts the program
-        }
 
         while self.running:
             # ir = instruction register
             ir = self.ram_read(self.pc)
-            operand_a = self.ram_read(self.pc + 1)
-            operand_b = self.ram_read(self.pc + 2)
 
-            if ir == instructions['HLT']:
-                self.running = False
-            elif ir == instructions['PRN']:
-                # the next line is the address in the register to print
-                reg_address = operand_a
-                value = self.reg[reg_address]
-                print(value)
-                # increment by 2 since there were two lines of instruction
-                self.pc += 2
-            elif ir == instructions['LDI']:
-                #The current IR is an instruction
-                #operand_a is IR + 1, which is the memory location
-                #operand_b is the IR + 2 which is the value
-                reg_address = operand_a
-                value = operand_b
-                self.reg[reg_address] = value
+            if ir in self.branch_table:
+                self.branch_table[ir]()
+                # creates a 'mask' and then shifts off the unneeded binary to get the number of operands
+                operands = (ir & 0b11000000) >> 6
+                # increment the pc by the number of operands + 1 (for the instruction itself)
+                self.pc += operands + 1
 
-                # Increment pc by 3 since the instructions read 3 lines of instruction
-                self.pc += 3
             else:
                 print(f'Unknown Instruction {ir} as address {self.pc}')
                 sys.exit(1)
