@@ -146,7 +146,7 @@ This instruction sets a specified register to a specified value.
 See the LS-8 spec for the details of what this instructions does and its opcode
 value.
 
-## Step 6: Add the `PRN` instruction
+## Step 6: Add the `PRN` instruction END OF DAY 1 MVP
 
 This is a very similar process to adding `LDI`, but the handler is simpler. See
 the LS-8 spec.
