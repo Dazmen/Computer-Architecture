@@ -31,7 +31,10 @@ class CPU:
             0b10100010: self.MUL,
             0b00000001: self.HLT,
             0b01000101: self.PUSH,
-            0b01000110: self.POP
+            0b01000110: self.POP,
+            0b10100000: self.ADD,
+            0b01010000: self.CALL,
+            0b00010001: self.RET
         }
         
     ### MAR = address/index, MRD = value
@@ -50,7 +53,6 @@ class CPU:
         with open(file) as f:
             for line in f:
                 split_line = line.split(' ')[0].strip("\n")
-                # print(split_line)
                 if len(split_line) == 8:
                     self.ram[address] = int(split_line, 2)
                     address += 1
@@ -105,7 +107,7 @@ class CPU:
 
     def MUL(self):
         num1 = self.ram_read(self.pc + 1)
-        num2 = self.ram_read(self.pc +2 )
+        num2 = self.ram_read(self.pc + 2)
         self.alu("MUL", num1, num2)
 
     def PUSH(self):
@@ -119,7 +121,35 @@ class CPU:
         value = self.ram[self.stp]
         self.reg[reg_address] = value
         self.stp += 1
+    
+    def ADD(self):
+        num1 = self.ram_read(self.pc + 1)
+        num2 = self.ram_read(self.pc + 2)
+        self.alu("ADD", num1, num2)
+    
+    def CALL(self):
+        #we are going to add to the stack so decrement the stack pointer
+        self.stp -= 1
 
+        # Where RET will return to
+        return_address = self.pc + 2
+        self.ram[self.stp] = return_address
+
+        # get address to call
+        reg_index = self.ram[self.pc + 1]
+
+        # assign the value in the register to the program counter
+        self.pc = self.reg[reg_index]
+
+    def RET(self):
+        # get the return address
+        return_address = self.ram[self.stp]
+
+        # set pc to return address
+        self.pc = return_address
+
+        # increment the stack pointer since a value was "popped"
+        self.stp += 1
 
     def run(self):
         """Run the CPU."""
@@ -132,8 +162,14 @@ class CPU:
                 self.branch_table[ir]()
                 # creates a 'mask' and then shifts off the unneeded binary to get the number of operands
                 operands = (ir & 0b11000000) >> 6
-                # increment the pc by the number of operands + 1 (for the instruction itself)
-                self.pc += operands + 1
+                
+                # creates a 'mask then shifts off unneeded numbers to check for the bit that represents manupulating the program counter
+                pc_param = (ir & 0b00010000) >> 4
+
+                # if the pc_param is 0, increment the the pc count, else continue
+                if not pc_param:
+                    # increment the pc by the number of operands + 1 (for the instruction itself)
+                    self.pc += operands + 1
 
             else:
                 print(f'Unknown Instruction {ir} as address {self.pc}')
